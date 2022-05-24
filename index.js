@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken')
 require('dotenv').config();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const res = require('express/lib/response');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -59,6 +60,23 @@ async function run() {
             }
         }
 
+        app.post('/create-payment-intent', verifyJWT, async (req, res) => {
+            const service = req.body;
+            const price = service.price;
+            const amount = price * 100;
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: amount,
+                currency: 'usd',
+                payment_method_types: ['card']
+            });
+            res.send({ clientSecret: paymentIntent.client_secret })
+        });
+
+        //  getting user information via login and signup
+        app.get('/user', verifyJWT, async (req, res) => {
+            const users = await userCollection.find().toArray();
+            res.send(users);
+        })
 
 
         app.get('/admin/:email', async (req, res) => {
@@ -77,6 +95,20 @@ async function run() {
             const result = await userCollection.updateOne(filter, updateDoc);
             res.send(result);
 
+        })
+
+        app.put('/user/:email', async (req, res) => {
+            const name = req.body;
+            const email = req.params.email;
+            const user = req.body;
+            const filter = { email: email };
+            const options = { upsert: true };
+            const updatedDoc = {
+                $set: user,
+            };
+            const result = await userCollection.updateOne(filter, updatedDoc, options, name);
+            const token = jwt.sign({ email: email }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1d' })
+            res.send({ result, token });
         })
 
 
@@ -130,17 +162,26 @@ async function run() {
         });
 
 
-        app.get('/purchased', async (req, res) => {
-            const purchased = await purchasedCollection.find().toArray();
-            res.send(purchased);
+        app.get('/purchased', verifyJWT, async (req, res) => {
+            const buyer = req.query.buyer;
+            const decodedEmail = req.decoded.email;
+            if (buyer === decodedEmail) {
+                const query = { buyer: buyer };
+                const purchased = await purchasedCollection.find(query).toArray();
+                return res.send(purchased);
+            }
+            else {
+                return res.status(403).send({ message: 'forbidden access' });
+            }
         })
 
-        app.get('/purchased/:email', async (req, res) => {
-            const email = req.params.email;
-            const query = { email: email };
-            const purchased = await purchasedCollection.find(query).toArray();
-            res.send(purchased);
+        app.get('/purchased/:id', verifyJWT, async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: ObjectId(id) };
+            const purchase = await purchasedCollection.findOne(query);
+            res.send(purchase);
         })
+
 
         app.post('/purchased', verifyJWT, async (req, res) => {
             const purchased = req.body;
@@ -148,26 +189,21 @@ async function run() {
             res.send(result)
         })
 
-
-        //  getting user information via login and signup
-        app.get('/user', verifyJWT, async (req, res) => {
-            const users = await userCollection.find().toArray();
-            res.send(users);
-        })
-
-        app.put('/user/:email', async (req, res) => {
-            const name = req.body;
-            const email = req.params.email;
-            const user = req.body;
-            const filter = { email: email };
-            const options = { upsert: true };
+        app.patch('/purchased/:id', verifyJWT, async (req, res) => {
+            const id = req.params.id;
+            const payment = req.body;
+            const filter = { _id: ObjectId(id) };
             const updatedDoc = {
-                $set: user,
-            };
-            const result = await userCollection.updateOne(filter, updatedDoc, options, name);
-            const token = jwt.sign({ email: email }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1d' })
-            res.send({ result, token });
+                $set: {
+                    paid: true,
+                    transactionId: payment.transactionId
+                }
+            }
+            const result = await paymentCollection.insertOne(payment);
+            const updatedPurchase = await purchasedCollection.updateOne(filter, updatedDoc);
+            res.send(updatedDoc)
         })
+
     }
     finally {
 
