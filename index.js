@@ -44,6 +44,7 @@ async function run() {
         await client.connect();
         const userCollection = client.db('drilled_tools').collection('users');
         const itemsCollection = client.db('drilled_tools').collection('items');
+        const purchasedCollection = client.db('drilled_tools').collection('purchased');
 
 
         // getting all items
@@ -70,15 +71,15 @@ async function run() {
             res.send(result);
         });
 
-        // update user
+        // update items quantity
         app.put('/items/:id', async (req, res) => {
             const id = req.params.id;
-            const updatedUser = req.body;
+            const updatedItems = req.body;
             const filter = { _id: ObjectId(id) };
             const options = { upsert: true };
             const updatedDoc = {
                 $set: {
-                    quantity: updatedUser.quantity
+                    quantity: updatedItems.quantity
                 }
             };
             const result = await itemsCollection.updateOne(filter, updatedDoc, options);
@@ -94,6 +95,18 @@ async function run() {
             const result = await itemsCollection.deleteOne(query);
             res.send(result);
         });
+
+
+        app.get('/purchased', verifyJWT, async (req, res) => {
+            const purchased = await purchasedCollection.find().toArray();
+            res.send(purchased);
+        })
+
+        app.post('/purchased', verifyJWT, async (req, res) => {
+            const purchased = req.body;
+            const result = await purchasedCollection.insertOne(purchased);
+            res.send(result)
+        })
 
 
         //  getting user information via login and signup
