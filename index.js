@@ -45,6 +45,7 @@ async function run() {
         const userCollection = client.db('drilled_tools').collection('users');
         const itemsCollection = client.db('drilled_tools').collection('items');
         const purchasedCollection = client.db('drilled_tools').collection('purchased');
+        const paymentCollection = client.db('drilled_tools').collection('payments');
 
 
         const verifyAdmin = async (req, res, next) => {
@@ -129,8 +130,15 @@ async function run() {
         });
 
 
-        app.get('/purchased', verifyJWT, async (req, res) => {
+        app.get('/purchased', async (req, res) => {
             const purchased = await purchasedCollection.find().toArray();
+            res.send(purchased);
+        })
+
+        app.get('/purchased/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { email: email };
+            const purchased = await purchasedCollection.find(query).toArray();
             res.send(purchased);
         })
 
