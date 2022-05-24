@@ -182,6 +182,13 @@ async function run() {
             res.send(purchase);
         })
 
+        app.delete('/purchased/:id', verifyJWT, async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: ObjectId(id) };
+            const result = await purchasedCollection.deleteOne(filter);
+            res.send(result);
+        })
+
 
         app.post('/purchased', verifyJWT, async (req, res) => {
             const purchased = req.body;
