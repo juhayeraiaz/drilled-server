@@ -89,7 +89,6 @@ async function run() {
             res.send({ clientSecret: paymentIntent.client_secret })
         });
 
-        //  getting user information via login and signup
 
         app.get('/user', verifyJWT, async (req, res) => {
             const users = await userCollection.find().toArray();
@@ -133,6 +132,16 @@ async function run() {
             res.send(result);
 
         })
+
+        // deleting a user
+        app.delete('/user/:email', verifyJWT, verifyAdmin, async (req, res) => {
+            const email = req.params.email;
+            const filter = { email: email };
+            const result = await userCollection.deleteOne(filter);
+            res.send(result);
+        })
+
+
         // getting all reviews
         app.post('/reviews', verifyJWT, async (req, res) => {
             const reviews = req.body;
@@ -192,6 +201,12 @@ async function run() {
             res.send(result);
         });
 
+
+        app.get('/purchases', verifyJWT, async (req, res) => {
+            const purchase = await purchasedCollection.find().toArray();
+            res.send(purchase);
+        })
+
         // getting all items purchased info
         app.get('/purchased', verifyJWT, async (req, res) => {
             const buyer = req.query.buyer;
@@ -241,6 +256,17 @@ async function run() {
             const result = await paymentCollection.insertOne(payment);
             const updatedPurchase = await purchasedCollection.updateOne(filter, updatedDoc);
             res.send(updatedDoc)
+        })
+        app.post('/purchased/:id', async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: ObjectId(id) };
+            const options = { upsert: true };
+            const updatePurchase = req.body;
+            const updatedDoc = {
+                $set: updatePurchase
+            }
+            const result = await purchasedCollection.updateOne(filter, updatedDoc, options);
+            res.send(result);
         })
 
     }
