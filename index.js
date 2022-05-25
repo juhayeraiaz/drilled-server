@@ -170,9 +170,9 @@ async function run() {
         });
 
         // adding a item to items collection
-        app.post('/items', async (req, res) => {
-            const newItem = req.body;
-            const result = await itemsCollection.insertOne(newItem);
+        app.post('/items', verifyJWT, verifyAdmin, async (req, res) => {
+            const item = req.body;
+            const result = await itemsCollection.insertOne(item);
             res.send(result);
         });
 
@@ -201,7 +201,7 @@ async function run() {
             res.send(result);
         });
 
-
+        // getting all purchase information
         app.get('/purchases', verifyJWT, async (req, res) => {
             const purchase = await purchasedCollection.find().toArray();
             res.send(purchase);
@@ -257,6 +257,7 @@ async function run() {
             const updatedPurchase = await purchasedCollection.updateOne(filter, updatedDoc);
             res.send(updatedDoc)
         })
+        // updating delivery status
         app.post('/purchased/:id', async (req, res) => {
             const id = req.params.id;
             const filter = { _id: ObjectId(id) };
