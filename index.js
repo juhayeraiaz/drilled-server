@@ -20,7 +20,6 @@ const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology:
 
 // verifying JWT token for security
 
-
 function verifyJWT(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
@@ -36,7 +35,6 @@ function verifyJWT(req, res, next) {
     });
 }
 
-
 async function run() {
     try {
 
@@ -47,8 +45,25 @@ async function run() {
         const itemsCollection = client.db('drilled_tools').collection('items');
         const purchasedCollection = client.db('drilled_tools').collection('purchased');
         const paymentCollection = client.db('drilled_tools').collection('payments');
+        const reviewCollection = client.db('drilled_tools').collection('reviews');
 
 
+
+        // basic user info taken upon signup or signin
+        app.put('/user/:email', async (req, res) => {
+            const email = req.params.email;
+            const user = req.body;
+            const filter = { email: email };
+            const options = { upsert: true };
+            const updatedDoc = {
+                $set: user,
+            };
+            const result = await userCollection.updateOne(filter, updatedDoc, options);
+            const token = jwt.sign({ email: email }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '20d' })
+            res.send({ result, token });
+        })
+
+        // verifying admin 
         const verifyAdmin = async (req, res, next) => {
             const requester = req.decoded.email;
             const requesterAccount = await userCollection.findOne({ email: requester });
@@ -60,6 +75,8 @@ async function run() {
             }
         }
 
+
+        //  payment method intent
         app.post('/create-payment-intent', verifyJWT, async (req, res) => {
             const service = req.body;
             const price = service.price;
@@ -73,11 +90,12 @@ async function run() {
         });
 
         //  getting user information via login and signup
+
         app.get('/user', verifyJWT, async (req, res) => {
             const users = await userCollection.find().toArray();
             res.send(users);
         })
-
+        //  updating my profile section
         app.post('/user/:email', verifyJWT, async (req, res) => {
             const email = req.params.email;
             const filter = { email: email }
@@ -89,22 +107,22 @@ async function run() {
             const result = await userCollection.updateOne(filter, updatedDoc, options);
             res.send(result);
         })
-
-        app.get('/user/:email', async (req, res) => {
+        // filtering a user by email 
+        app.get('/user/:email', verifyJWT, async (req, res) => {
             const email = req.params.email;
             const filter = { email: email };
             const user = await userCollection.findOne(filter);
             res.send(user);
         })
 
-
+        // filtering an admin by admin role 
         app.get('/admin/:email', async (req, res) => {
             const email = req.params.email;
             const user = await userCollection.findOne({ email: email });
             const isAdmin = user.role === 'admin';
             res.send({ admin: isAdmin })
         })
-
+        // making a user admin
         app.put('/user/admin/:email', verifyJWT, verifyAdmin, async (req, res) => {
             const email = req.params.email;
             const filter = { email: email };
@@ -115,24 +133,18 @@ async function run() {
             res.send(result);
 
         })
-
-        app.put('/user/:email', async (req, res) => {
-            const name = req.body;
-            const email = req.params.email;
-            const user = req.body;
-            const filter = { email: email };
-            const options = { upsert: true };
-            const updatedDoc = {
-                $set: user,
-            };
-            const result = await userCollection.updateOne(filter, updatedDoc, options, name);
-            const token = jwt.sign({ email: email }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1d' })
-            res.send({ result, token });
+        // getting all reviews
+        app.post('/reviews', verifyJWT, async (req, res) => {
+            const reviews = req.body;
+            const getReviews = await reviewCollection.insertOne(reviews);
+            res.send(getReviews);
+        })
+        app.get('/reviews', async (req, res) => {
+            const reviews = await reviewCollection.find().toArray();
+            res.send(reviews);
         })
 
-
         // getting all items
-
 
         app.get('/items', async (req, res) => {
             const query = {};
@@ -140,7 +152,7 @@ async function run() {
             const items = await cursor.toArray();
             res.send(items);
         });
-
+        // getting item by unique id
         app.get('/items/:id', async (req, res) => {
             const id = req.params.id;
             const query = { _id: ObjectId(id) };
@@ -148,14 +160,14 @@ async function run() {
             res.send(item);
         });
 
-        // POST
+        // adding a item to items collection
         app.post('/items', async (req, res) => {
             const newItem = req.body;
             const result = await itemsCollection.insertOne(newItem);
             res.send(result);
         });
 
-        // update items quantity
+        // updating items quantity
         app.put('/items/:id', async (req, res) => {
             const id = req.params.id;
             const updatedItems = req.body;
@@ -172,7 +184,7 @@ async function run() {
         })
 
 
-        // DELETE
+        // deleting a item by unique id
         app.delete('/items/:id', async (req, res) => {
             const id = req.params.id;
             const query = { _id: ObjectId(id) };
@@ -180,7 +192,7 @@ async function run() {
             res.send(result);
         });
 
-
+        // getting all items purchased info
         app.get('/purchased', verifyJWT, async (req, res) => {
             const buyer = req.query.buyer;
             const decodedEmail = req.decoded.email;
@@ -193,14 +205,14 @@ async function run() {
                 return res.status(403).send({ message: 'forbidden access' });
             }
         })
-
+        // getting a purchased item info 
         app.get('/purchased/:id', verifyJWT, async (req, res) => {
             const id = req.params.id;
             const query = { _id: ObjectId(id) };
             const purchase = await purchasedCollection.findOne(query);
             res.send(purchase);
         })
-
+        // deleting a purchased item
         app.delete('/purchased/:id', verifyJWT, async (req, res) => {
             const id = req.params.id;
             const filter = { _id: ObjectId(id) };
@@ -208,13 +220,13 @@ async function run() {
             res.send(result);
         })
 
-
+        // inserting a item info on purchase
         app.post('/purchased', verifyJWT, async (req, res) => {
             const purchased = req.body;
             const result = await purchasedCollection.insertOne(purchased);
             res.send(result)
         })
-
+        // updating item status upon payment
         app.patch('/purchased/:id', verifyJWT, async (req, res) => {
             const id = req.params.id;
             const payment = req.body;
