@@ -78,6 +78,25 @@ async function run() {
             res.send(users);
         })
 
+        app.post('/user/:email', verifyJWT, async (req, res) => {
+            const email = req.params.email;
+            const filter = { email: email }
+            const updatedUser = req.body;
+            const options = { upsert: true };
+            const updatedDoc = {
+                $set: updatedUser,
+            }
+            const result = await userCollection.updateOne(filter, updatedDoc, options);
+            res.send(result);
+        })
+
+        app.get('/user/:email', async (req, res) => {
+            const email = req.params.email;
+            const filter = { email: email };
+            const user = await userCollection.findOne(filter);
+            res.send(user);
+        })
+
 
         app.get('/admin/:email', async (req, res) => {
             const email = req.params.email;
@@ -203,6 +222,7 @@ async function run() {
             const updatedDoc = {
                 $set: {
                     paid: true,
+                    delivery: true,
                     transactionId: payment.transactionId
                 }
             }
